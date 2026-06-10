@@ -15,8 +15,9 @@ preset above the current brightness.
 ## Files
 
 ```
-desk-lamp.yaml                 # entry: identity, board, secrets, includes
-secrets.yaml.example           # copy to secrets.yaml and fill in
+example/
+  desk-lamp.yaml               # entry: identity, board, secrets, includes
+  secrets.yaml.example         # copy to secrets.yaml and fill in
 packages/
   infrastructure.yaml          # logging, web server, safe mode, status LED, diagnostics
   dimmer.yaml                  # I2C bus + DimmerLink light + sensors + curve select + buttons
