@@ -1,0 +1,105 @@
+# =============================================================================
+#  Desk Lamp  -  Seeed XIAO ESP32-S3  +  DimmerLink (integrated TRIAC dimmer)
+# =============================================================================
+#  Retrofit/repair of a touch desk lamp. The lamp's METAL BASE is the touch
+#  electrode (as it was originally), read by the S3's native capacitive touch.
+#
+#  Thin entry file (per guidelines S2): device identity, board, secrets,
+#  connectivity and the external component pin live here. Domain logic lives
+#  in packages/.
+#
+#  Hardware:
+#    - Seeed Studio XIAO ESP32-S3            (ESP-IDF; native touch on GPIO1-14)
+#    - DimmerLink-integrated AC dimmer       (I2C @ 0x50; dedicated Cortex-M does
+#                                             all phase-control timing -> flicker
+#                                             free, no ESP ISR involved)
+#    - The lamp's metal base                 (touch electrode -> touch GPIO)
+#
+#  Behaviour:
+#    - Touch base -> 4 brightness steps (25/50/75/100 %), then next touch -> OFF
+#    - Home Assistant -> normal continuous 0-100 % dimming
+#
+#  IMPORTANT - two things to do before this "just works":
+#    1. Fill in secrets.yaml (copy secrets.yaml.example).
+#    2. CALIBRATE the touch threshold for your base (setup_mode workflow in
+#       README). The metal base is a large electrode, so the shipped
+#       touch_threshold is only a placeholder.
+#
+#  Validate against YOUR exact ESPHome version before flashing:
+#      esphome config  desk-lamp.yaml
+#      esphome compile desk-lamp.yaml      # first compile needs internet
+#  (Schema-verified against ESPHome 2026.5.3.)
+# =============================================================================
+
+substitutions:
+  name: "desk-lamp"
+  friendly_name: "Desk Lamp"
+
+  # --- Pins (Seeed XIAO ESP32-S3 silk -> GPIO) --------------------------------
+  touch_pin: GPIO1          # D0  (TOUCH1) -> lamp metal base, via series resistor
+  i2c_sda: GPIO5            # D4  (SDA)    -> DimmerLink SDA
+  i2c_scl: GPIO6            # D5  (SCL)    -> DimmerLink SCL
+  # (D2/GPIO3 is a strapping pin and is intentionally left unused.)
+
+  # --- Touch detection threshold ---------------------------------------------
+  # On the S3, this is the delta above the rolling benchmark that counts as a
+  # touch. It is ELECTRODE-SPECIFIC and MUST be calibrated for the metal base.
+  # PLACEHOLDER ONLY - see the setup_mode workflow in README before relying on it.
+  touch_threshold: "1000"
+
+  # --- Touch brightness steps (percent) --------------------------------------
+  # Quoted per guidelines S3. 25/50/75/100 are exact in binary floating point.
+  touch_level_1: "25"
+  touch_level_2: "50"
+  touch_level_3: "75"
+  touch_level_4: "100"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: "2026.5.0"   # unified esp32_touch driver + current schemas
+
+esp32:
+  board: seeed_xiao_esp32s3
+  variant: esp32s3
+  framework:
+    # ESP-IDF per guidelines S8 (default for ESP32-family). Neither DimmerLink
+    # (pure I2C) nor esp32_touch needs any special sdkconfig here.
+    type: esp-idf
+
+# --- Connectivity / identity (secrets) ----------------------------------------
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  min_auth_mode: WPA2       # explicit modern default (guidelines S7; ESP32 only)
+  # Mains-powered: disable Wi-Fi power save for snappier HA response + stability.
+  power_save_mode: none
+  # Fail-safe (guidelines S1): touch is fully local, so a network outage must not
+  # reboot a working lamp. The AP fallback below is the recovery path.
+  reboot_timeout: 0s
+  ap:
+    ssid: "Desk Lamp Fallback"
+    password: !secret wifi_ap_password
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s        # a Home Assistant outage must not reboot the lamp
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# --- External component (pinned) ----------------------------------------------
+# DimmerLink ESPHome component, pinned to an immutable commit for reproducible
+# builds (guidelines S0/S7). The repo is currently untagged; bump this SHA
+# deliberately when you want to update.
+external_components:
+  - source: github://robotdyn-dimmer/DimmerLink@e05a3267a7737806a181b9546fe741d9c321ab96
+    components: [dimmerlink]
+
+# --- Packages (domain logic) --------------------------------------------------
+packages:
+  infrastructure: !include packages/infrastructure.yaml
+  dimmer: !include packages/dimmer.yaml
+  touch: !include packages/touch.yaml

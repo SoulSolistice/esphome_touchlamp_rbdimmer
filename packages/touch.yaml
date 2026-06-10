@@ -1,0 +1,75 @@
+# =============================================================================
+#  Package: touch  -  native capacitive touch on the lamp's metal base
+# =============================================================================
+#  The ESP32-S3 has a hardware capacitive-touch peripheral, so the lamp's metal
+#  base is read directly (no external touch IC). The base is a LARGE electrode,
+#  which is why the threshold must be calibrated rather than guessed.
+#
+#  Behaviour on each touch (rising edge):
+#    OFF -> 25 % -> 50 % -> 75 % -> 100 % -> OFF -> 25 % ...
+#  After Home Assistant sets an arbitrary level, the next touch jumps to the
+#  first preset above the current brightness. Runs on-device, so touch works
+#  with no Wi-Fi / HA (guidelines S1).
+#
+#  -------------------------------------------------------------------------
+#  CALIBRATION (do this once, for your base):
+#    1. Set `setup_mode: true` below, flash, and open logs:
+#         esphome logs desk-lamp.yaml
+#    2. Watch the per-channel lines. On the S3 they read:
+#         Touch Pad 'Lamp Touch' (Ch1): value=..., benchmark=..., difference=N
+#         (set threshold < N to detect touch)
+#    3. Note `difference` at rest (small/noisy) vs while touching the base
+#       (a larger positive number). Set `touch_threshold` in desk-lamp.yaml to
+#       roughly halfway between them - comfortably above resting noise, below
+#       the touched value.
+#    4. Set `setup_mode: false`, reflash.
+#  If the base is noisy/unreliable, the S3 offers a tuning group on the hub
+#  (debounce_count + filter_mode + noise_threshold + jitter_step + smooth_mode,
+#  set together) and a denoise pair (denoise_grade + denoise_cap_level); add
+#  those only if calibration alone isn't stable.
+#  -------------------------------------------------------------------------
+
+esp32_touch:
+  id: touch_hub
+  setup_mode: false      # set true to calibrate (see above), then back to false
+
+binary_sensor:
+  - platform: esp32_touch
+    name: "Lamp Touch"
+    id: touch_button
+    pin: ${touch_pin}
+    threshold: ${touch_threshold}
+    filters:
+      - delayed_on: 50ms     # reject brief noise spikes on the large electrode
+    on_press:
+      - lambda: |-
+          // Configured brightness steps (fractions 0..1).
+          const float levels[4] = {
+            ${touch_level_1} / 100.0f,
+            ${touch_level_2} / 100.0f,
+            ${touch_level_3} / 100.0f,
+            ${touch_level_4} / 100.0f,
+          };
+
+          // Use the *target* state (remote_values), not the mid-transition value,
+          // so rapid taps step predictably.
+          const bool is_on = id(desk_lamp).remote_values.get_state() > 0.5f;
+          const float bri = id(desk_lamp).remote_values.get_brightness();
+
+          float target = -1.0f;
+          if (!is_on) {
+            target = levels[0];                 // OFF -> first step
+          } else {
+            for (int i = 0; i < 4; i++) {       // step up to first level above current
+              if (levels[i] > bri + 0.01f) {
+                target = levels[i];
+                break;
+              }
+            }
+          }
+
+          if (target < 0.0f) {
+            id(desk_lamp).turn_off().perform();           // at/above top -> OFF
+          } else {
+            id(desk_lamp).turn_on().set_brightness(target).perform();
+          }

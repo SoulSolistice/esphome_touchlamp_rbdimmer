@@ -1,0 +1,82 @@
+# =============================================================================
+#  Package: dimmer  -  DimmerLink integrated AC dimmer (I2C)
+# =============================================================================
+#  The DimmerLink board is a self-contained AC dimmer controller: a dedicated
+#  Cortex-M does zero-cross detection and TRIAC firing with microsecond
+#  precision, and the ESP just writes a brightness value over I2C. This keeps
+#  all time-critical work off the ESP, so dimming is flicker-free regardless of
+#  Wi-Fi activity.
+#
+#  Exposes a brightness-only light to Home Assistant -> normal 0-100 % dimming.
+#  The touch package drives this same light by its id (desk_lamp).
+# =============================================================================
+
+# Dedicated I2C bus for the DimmerLink controller.
+i2c:
+  sda: ${i2c_sda}
+  scl: ${i2c_scl}
+  scan: true
+  frequency: 100kHz
+
+# DimmerLink hub (I2C device at 0x50).
+dimmerlink:
+  id: dimmer_hub
+  address: 0x50
+
+light:
+  - platform: dimmerlink
+    name: "Desk Lamp"
+    id: desk_lamp
+    dimmerlink_id: dimmer_hub
+    default_transition_length: 250ms
+    gamma_correct: 1.0
+    # Stay OFF after a power cut (predictable for a lamp) and write no light
+    # state to flash - ALWAYS_OFF keeps nothing in flash (guidelines S1).
+    restore_mode: ALWAYS_OFF
+
+# Monitoring / diagnostics reported by the controller.
+sensor:
+  - platform: dimmerlink
+    dimmerlink_id: dimmer_hub
+    update_interval: 60s
+    ac_frequency:
+      name: "AC Frequency"
+    level:
+      name: "Dimmer Level"
+    firmware_version:
+      name: "Dimmer Firmware"      # entity_category diagnostic set by component
+    ac_period:
+      name: "AC Period"            # entity_category diagnostic set by component
+
+# Controller status flags.
+binary_sensor:
+  - platform: dimmerlink
+    dimmerlink_id: dimmer_hub
+    update_interval: 1s
+    ready:
+      name: "Dimmer Ready"
+      entity_category: diagnostic
+    error:
+      name: "Dimmer Error"
+      device_class: problem
+      entity_category: diagnostic
+    calibration_done:
+      name: "Dimmer Calibrated"
+      entity_category: diagnostic
+
+# Runtime-switchable dimming curve so it can be matched to the bulb without
+# reflashing.
+select:
+  - platform: dimmerlink
+    dimmerlink_id: dimmer_hub
+    curve:
+      name: "Dimming Curve"
+
+# Controller maintenance.
+button:
+  - platform: dimmerlink
+    dimmerlink_id: dimmer_hub
+    reset:
+      name: "Reset Dimmer"
+    recalibrate:
+      name: "Recalibrate Dimmer"

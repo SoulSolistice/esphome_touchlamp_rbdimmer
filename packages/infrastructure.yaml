@@ -1,0 +1,78 @@
+# =============================================================================
+#  Package: infrastructure  -  logging, recovery, status LED, diagnostics
+# =============================================================================
+#  (The XIAO ESP32-S3 uses its onboard antenna by default and has no
+#   GPIO-controlled RF switch, so no antenna handling is needed here.)
+
+logger:
+  level: INFO     # raise to DEBUG (or use setup_mode) when calibrating touch
+
+web_server:
+  port: 80        # entity_category groups diagnostics automatically (S5)
+
+# Companion to the Wi-Fi AP fallback for first-time / recovery provisioning.
+captive_portal:
+
+# Recovery: boot into safe mode after repeated boot failures so the device
+# stays OTA-updatable. Declared explicitly per guidelines S6.
+safe_mode:
+  boot_is_good_after: 1min
+  num_attempts: 10
+
+# Onboard yellow USER LED (GPIO21, active-LOW) as a device status indicator.
+# (GPIO21 is not a strapping pin on the S3, so no override is needed.)
+light:
+  - platform: status_led
+    name: "Status LED"
+    id: status_led_light
+    pin:
+      number: GPIO21
+      inverted: true
+    restore_mode: ALWAYS_OFF
+
+# Brings in the reset-reason / debug sensors below.
+debug:
+
+# --- Diagnostics (guidelines S8) ----------------------------------------------
+sensor:
+  - platform: uptime
+    name: "Uptime"
+  - platform: wifi_signal
+    name: "Wi-Fi Signal"
+    update_interval: 60s
+  - platform: internal_temperature
+    name: "Internal Temperature"
+  - platform: debug
+    free:
+      name: "Heap Free"
+    loop_time:
+      name: "Loop Time"
+
+binary_sensor:
+  - platform: status
+    name: "Status"
+
+text_sensor:
+  - platform: version
+    name: "ESPHome Version"
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+    ssid:
+      name: "Connected SSID"
+    mac_address:
+      name: "MAC Address"
+  - platform: debug
+    device:
+      name: "Device Info"
+    reset_reason:
+      name: "Reset Reason"
+
+# --- Maintenance buttons ------------------------------------------------------
+button:
+  - platform: restart
+    name: "Restart"
+  - platform: safe_mode
+    name: "Restart (Safe Mode)"
+  - platform: factory_reset
+    name: "Factory Reset"
