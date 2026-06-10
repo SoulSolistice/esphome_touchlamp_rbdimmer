@@ -1,3 +1,5 @@
+[![CI](https://github.com/SoulSolistice/esphome_touchlamp_rbdimmer/actions/workflows/ci.yml/badge.svg)](https://github.com/SoulSolistice/esphome_touchlamp_rbdimmer/actions/workflows/ci.yml)
+
 # Desk Lamp — XIAO ESP32-S3 + DimmerLink (ESPHome)
 
 Retrofit/repair of a touch desk lamp whose original touch dimmer died. The
@@ -147,3 +149,29 @@ On first boot, check in HA: **Dimmer Ready** is on and **Dimmer Calibrated** is
 true, and **AC Frequency** reads ~50/60 Hz — that confirms the DimmerLink is
 talking over I²C and has locked onto mains. If the I²C scan finds nothing, the
 log's `i2c: scan: true` output will say so (recheck SDA/SCL and power).
+
+## Continuous integration
+
+```markdown
+Every pull request and every push to `main` runs the workflow in
+`.github/workflows/ci.yml`:
+
+- **Lint** — the same `pre-commit` suite you can run locally (yamllint plus
+  trailing-whitespace / end-of-file / line-ending hygiene).
+- **Build** — `esphome config` then `esphome compile` against the real
+  `example/desk-lamp.yaml`, with a throwaway `secrets.yaml` generated in the job
+  (no real secrets are ever committed). This validates the actual packages and
+  the exact pinned DimmerLink commit the repo ships, and fails on a schema
+  regression, a broken `!include`, or a C++ error in the component.
+
+CI pins ESPHome to a single version (the `ESPHOME_VERSION` env in the workflow);
+bump it deliberately. The entry file's `esphome: min_version:` is the matching
+runtime floor. The first compile is slow because the ESP-IDF toolchain is a
+large download; later runs restore it from cache.
+
+To run the linters locally before pushing:
+
+    pip install pre-commit
+    pre-commit install          # optional: run on every git commit
+    pre-commit run --all-files
+```

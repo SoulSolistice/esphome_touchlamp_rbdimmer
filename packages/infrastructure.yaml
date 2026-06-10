@@ -8,7 +8,12 @@ logger:
   level: INFO     # raise to DEBUG (or use setup_mode) when calibrating touch
 
 web_server:
-  port: 80        # entity_category groups diagnostics automatically (S5)
+  port: 80         # entity_category groups diagnostics automatically (S5)
+  version: 3       # v3 UI (S5); default is still 2, so set it explicitly
+  local: true      # serve the web assets from flash, not a CDN. Keeps the UI
+                   # fully LAN-local with no outbound fetch (S7, mitigates the
+                   # web_server external-asset exposure tracked as
+                   # CVE-2025-57808). Costs a little flash; negligible on 8 MB.
 
 # Companion to the Wi-Fi AP fallback for first-time / recovery provisioning.
 captive_portal:

@@ -99,7 +99,12 @@ external_components:
     components: [dimmerlink]
 
 # --- Packages (domain logic) --------------------------------------------------
+# !include resolves RELATIVE TO THIS FILE'S directory (example/), so the paths
+# climb one level to the repo-root packages/ (i.e. example/../packages/...).
+# Named-mapping form is intentional and current: only the *single*-package
+# include form (`packages: !include x.yaml`) is deprecated (-> removed 2026.7);
+# a named dict of packages is a separate, supported schema branch.
 packages:
-  infrastructure: !include packages/infrastructure.yaml
-  dimmer: !include packages/dimmer.yaml
-  touch: !include packages/touch.yaml
+  infrastructure: !include ../packages/infrastructure.yaml
+  dimmer: !include ../packages/dimmer.yaml
+  touch: !include ../packages/touch.yaml
